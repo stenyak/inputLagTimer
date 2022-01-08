@@ -609,7 +609,7 @@ def main(webcamNextRequested):
       if not pauseOnce: cooldown = cooldown - spf # advance cooldown
       cooldownFinished = cooldownPrev > 0 and cooldown < 0
       cooldown = max(0, cooldown)
-      if cooldownFinished or latency.total(spf) > 1.5:
+      if cooldownFinished or latency.total(spf) > maxLatency*1.25:
         if latency.outDetectedFirst:
           # we have both input motion and output motion, so let's store this Latency measurement
           delaySecs = spf*(latency.outDetectedFirst - latency.inDetectedFirst)
