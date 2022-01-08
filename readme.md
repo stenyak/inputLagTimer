@@ -31,7 +31,7 @@ Things should work for latencies of up to 700ms; if you need to measure slower e
  1. Press `S` then follow screen instructions to **select the 🟦input and 🟪output rectangles**.
  1. Observe the input and output motion bars at the top, and press `1`/`2` and `3`/`4` to **adjust the motion detection thresholds (white indicator)**. Latency timing will start when the input motion passes the threshold, and stop when the output motion does.
 
-Note: a ```.cfg``` file will be created for each video, allowing to reproduce the esame latency analysis
+Note: a ```.cfg``` file will be created for each video, allowing to reproduce the same latency analysis.
 
 
 ## Tips and gotchas
@@ -39,7 +39,7 @@ Note: a ```.cfg``` file will be created for each video, allowing to reproduce th
  - **Disable gamepad vibration** and put the gamepad in a table (unless you want to measure vibration-latency!): in other words,reduce unnecessary motion from both the input and output rectangles.
  - Select the 🟦input and 🟪output rectangles as accurately as possible. E.g. **to measure keyboard key travel time, draw an input rectangle including the entire key height**. If you don't want to include key travel latency, draw the input rectangle as close to the key activation point as possible.
  - If using certain artificial lights, **enable camera's anti-flicker** feature when available (press `C` in InputLagTimer when using a webcam), or choose a recording framerate different than the powerline frequency used in your country (often 50Hz or 60Hz). This removes video flicker, vastly improving motion detection.
- - **Prefer higher recording framerate**, this provides finer-grained latency measurements`
+ - **Prefer higher recording framerate**, this provides finer-grained latency measurements:
    - Some phones and actioncams can reach hundreds of FPS.
    - Recording equipment may not reach its advertised framerate if it's not bright enough. If in doubt, add more lighting.
  - If your camera cannot reach the requested framerate (e.g. it only manages to capture 120FPS out of 240FPS, due to lack of light), **consider recording directly at the reachable framerate**. This eliminates the useless filler frames your camera was forced to duplicate, making it easier to tune the motion detection thresholds in InputLagTimer.
@@ -51,7 +51,7 @@ Note: a ```.cfg``` file will be created for each video, allowing to reproduce th
  - Screens normally refresh pixels from the top earlier than pixels from the bottom (or left before right, etc). The **location of 🟦input/🟪output rectangles in a screen can slightly skew latency** measurements.
  - The pixels on a screen can take longer or shorter to update, depending on:
    - Pixel color. E.g. white-to-black response time might be longer than black-to-white. 
-   - Panel type. E.g. OLED will normally by much quicker than LCD panels.
+   - Panel type. E.g. OLED will normally be much quicker than LCD panels.
    - Screen configuration. E.g. enabling 'overdrive', enabling 'game mode', etc.
  - Press `A` (Advanced mode) to see more keys and additional information.
 
