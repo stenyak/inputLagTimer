@@ -418,7 +418,7 @@ def getVideopath(webcamNextRequested):
     print("Error: missing argument, trying to open a webcam")
     showCommandLineUsage()
     webcamNextRequested = True
-    sys.argv.append(0) # begin with webcam number 0
+    sys.argv.append(-1) # begin with first webcam
 
   try:
     sys.argv[1] = int(sys.argv[1])
