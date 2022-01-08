@@ -5,5 +5,6 @@
 ###############################################################################
 
 # compiles the entire python thing into a ready-to-run binary
+destName="InputLagTimer"
 import PyInstaller.__main__
-PyInstaller.__main__.run(['inputLagTimer.py', '--distpath=.', '--onefile', '--icon=inputLagTimer.ico', '--windowed'])
+PyInstaller.__main__.run(['inputLagTimer.py', '--distpath=.', '--onefile', '--icon=inputLagTimer.ico', '--name={}'.format(destName), '--windowed'])
