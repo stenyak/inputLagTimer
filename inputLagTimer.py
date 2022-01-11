@@ -533,7 +533,6 @@ def main(webcamNextRequested):
   # loop control
   pauseOnce = False
   paused = False
-  nFrame = -1
   videoEnded = False
   selectRectanglesRequested = False
   retry = False
@@ -609,9 +608,12 @@ def main(webcamNextRequested):
           currTime = cap.get(cv.CAP_PROP_POS_MSEC)/1000.0
 
         dt = 0 if (oldTime is None) else (currTime - oldTime)
+
+        if prevFrame is None:
+          frameHeight, frameWidth, frameChannels = newFrame.shape
+          print("Video resolution: {} x {} @ {} fps".format(frameWidth, frameHeight, fps), flush=True)
         prevFrame = currFrame
         currFrame = newFrame
-        nFrame += 1
       else:
         # the video has ended
         paused = True
@@ -622,9 +624,6 @@ def main(webcamNextRequested):
           break
 
     # log some basic video stream after we've seen the first frame
-    if nFrame == 0:
-      frameHeight, frameWidth, frameChannels = currFrame.shape
-      print("Video resolution: {} x {} @ {} fps".format(frameWidth, frameHeight, fps), flush=True)
     winx, winy, winWidth, winHeight = cv.getWindowImageRect(windowName) #(x, y, w, h)
 
     # halt main loop while we wait for the user to draw the 2 rectangles where motiondetection will happen
@@ -736,8 +735,7 @@ def main(webcamNextRequested):
         " | (+,-)edge threshold {:.1f}".format(config['edgeThreshold']) if config['detectMode'] != "abs" else ""
       ), 5, line=line)
       line += 1
-      drawText(frameRender, "frame {:05} | (1,2)input {:.1f}/{:.1f}/{:.1f} | (3,4)output {:.1f}/{:.1f}/{:.1f}".format(
-        nFrame,
+      drawText(frameRender, "(1,2)input {:.1f}/{:.1f}/{:.1f} | (3,4)output {:.1f}/{:.1f}/{:.1f}".format(
         inScore, config['inThreshold'], inScorePeakValid,
         outScore, config['outThreshold'], outScorePeakValid,
       ), 5, line=line)
