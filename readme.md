@@ -47,7 +47,7 @@ Note: a ```.cfg``` file will be created for each video, allowing to reproduce th
 
 ![Rolling Shutter example](rollingshutter.jpg)
 
-([source: Axel1963 - CC BY-SA 3.0](https://commons.wikimedia.org/wiki/File:CMOS_rolling_shutter_distortion.jpg))
+([source: Axel1963](https://commons.wikimedia.org/wiki/File:CMOS_rolling_shutter_distortion.jpg) - [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/legalcode))
  - Screens normally refresh pixels from the top earlier than pixels from the bottom (or left before right, etc). The **location of 🟦input/🟪output rectangles in a screen can slightly skew latency** measurements.
  - The pixels on a screen can take longer or shorter to update, depending on:
    - Pixel color. E.g. white-to-black response time might be longer than black-to-white. 
@@ -82,5 +82,5 @@ Copyright 2021 Bruno Gonzalez Campo | [stenyak@stenyak.com](mailto:stenyak@steny
 Distributed under CC BY 3.0 license (see [license_icon.txt](license_icon.txt))
 
 Icon derived from:
- - [Console controller icon by Skoll](https://game-icons.net/1x1/skoll/console-controller.html) (CC BY 3.0)
- - [PC icon by Skoll](https://game-icons.net/1x1/skoll/pc.html) (CC BY 3.0)
+ - [Console controller icon by Skoll](https://game-icons.net/1x1/skoll/console-controller.html) ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0/legalcode))
+ - [PC icon by Skoll](https://game-icons.net/1x1/skoll/pc.html) ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0/legalcode))
