@@ -4,7 +4,7 @@
 # Distributed under MIT license (see license.txt)                             #
 ###############################################################################
 
-import os, sys, math, json
+import os, sys, math, json, time
 import cv2 as cv
 import numpy as np
 
@@ -24,20 +24,20 @@ class MotionDetection:
 # each measurement of photon-to-photon latency
 class Latency:
   def __init__(self):
-    self.inDetectedFirst = 0
-    self.inDetectedLast = 0
-    self.outDetectedFirst = 0
-    self.outDetectedLast = 0
-    self.lastFrame = 0
+    self.inDetectedFirstTime = 0
+    self.inDetectedLastTime = 0
+    self.outDetectedFirstTime = 0
+    self.outDetectedLastTime = 0
+    self.lastFrameTime = 0
     self.motionDetections = []
     self.startTime = 0
-  def secs(self, spf):
-    if self.outDetectedFirst:
-      return spf*(self.outDetectedFirst - self.inDetectedFirst)
+  def secs(self):
+    if self.outDetectedFirstTime:
+      return self.outDetectedFirstTime - self.inDetectedFirstTime
     else:
-      return self.total(spf)
-  def total(self, spf):
-    return spf*(self.lastFrame - self.inDetectedFirst)
+      return self.total()
+  def total(self):
+    return self.lastFrameTime - self.inDetectedFirstTime
 
 
 ###############################################################################
@@ -82,7 +82,7 @@ def drawRect(frame, rect, color, thickness=-1, scaleX=1, scaleY=1):
   return cv.rectangle(frame, start, end, color, thickness)
 
 def drawHeaderText(frame, currTime, videoEnded, line):
-  drawText(frame, "{:01}:{:06.3f} (s)elect rectangles, (p)ause, (r)estart, (esc)exit, (a)dvanced".format(int(currTime/1000/60), currTime/1000 % 60,), 5, line=line)
+  drawText(frame, "{:01}:{:06.3f} (s)elect rectangles, (p)ause, (r)estart, (esc)exit, (a)dvanced".format(int(currTime/60), currTime%60), 5, line=line)
   line += 1
   if videoEnded:
     drawText(frame, " ------ Reached end of video ------", 5, line=line, color=red, colorbg=white)
@@ -118,7 +118,7 @@ def drawLatency(frame, advanced, startTime, spf, n, yStart, secs, total, colorfr
   totalms = round(1000*total)
   y = yStart + n*h
   if advanced:
-    drawText(frame, "{:01}:{:06.3f}".format(int(startTime/1000/60), startTime/1000 % 60), x, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=colorbg)
+    drawText(frame, "{:01}:{:06.3f}".format(int(startTime/60), startTime % 60), x, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=colorbg)
     x = 5+70
   if cooldown:
     cooldownms = round(1000*cooldown)
@@ -294,7 +294,7 @@ def computeImageEdges(frame, config):
 
 # checks if the diff represents a meaningful amount of movement, based on analysis of historical movements
 # e.g. do not mistake minor image vibrations for "motion" if the video tends to be shakey, etc
-def computeMotionDetectionScore(nFrame, historySize, diff, values, scoreThreshold):
+def computeMotionDetectionScore(historySize, diff, values, scoreThreshold):
   motionDetected = False
   score = 0
   valueAvg = 0
@@ -346,7 +346,7 @@ def computeMotionDetectionScore(nFrame, historySize, diff, values, scoreThreshol
   return motionDetected, score
 
 # choose a frame-comparison method, and pass that diff through the motion detection system
-def detectMotion(prevFrame, currFrame, nFrame, historySize, rect, frameWidth, frameHeight, config, scores, scoreThreshold):
+def detectMotion(prevFrame, currFrame, historySize, rect, frameWidth, frameHeight, config, scores, scoreThreshold):
   prev = readSubImage(prevFrame, rect, frameWidth, frameHeight)
   curr = readSubImage(currFrame, rect, frameWidth, frameHeight)
   if config['detectMode'] == "abs+edges":
@@ -361,7 +361,7 @@ def detectMotion(prevFrame, currFrame, nFrame, historySize, rect, frameWidth, fr
     diff = cv.absdiff(prevEdges, currEdges)
   elif config['detectMode'] == "abs":
     diff = cv.absdiff(prev, curr)
-  motionDetected, score = computeMotionDetectionScore(nFrame, historySize, diff, scores, scoreThreshold)
+  motionDetected, score = computeMotionDetectionScore(historySize, diff, scores, scoreThreshold)
   return motionDetected, score, diff
 
 
@@ -455,8 +455,9 @@ def openVideopath(videopath, quality):
   drawText(frameRender, "Please wait...", 10, 140, fontScale=1.4, thickness=2, color=yellow)
   cv.imshow(windowName, frameRender)
 
+  isWebcam = type(videopath) is int
   # open camera
-  if type(videopath) is int:
+  if isWebcam:
     # we have a webcam id number
     windowsHack = True
     if windowsHack and os.name == 'nt':
@@ -488,7 +489,7 @@ def openVideopath(videopath, quality):
   else:
     # we have a filepath string
     cap = cv.VideoCapture(videopath)
-  return cap
+  return cap, isWebcam
 
 
 ###############################################################################
@@ -515,7 +516,7 @@ def main(webcamNextRequested):
   config = loadConfig(videopath)
 
   cv.namedWindow(windowName, cv.WINDOW_NORMAL)
-  cap = openVideopath(videopath, config["quality"])
+  cap, isWebcam = openVideopath(videopath, config["quality"])
 
   if not cap.isOpened():
     if type(videopath) is int:
@@ -555,6 +556,7 @@ def main(webcamNextRequested):
   latencies = []
 
   # aux data
+  startTime = None
   currTime = 0
   currFrame = None
   prevFrame = None
@@ -566,7 +568,16 @@ def main(webcamNextRequested):
     if not pauseOnce:
       ret, newFrame = cap.read()
       if ret:
-        currTime = cap.get(cv.CAP_PROP_POS_MSEC)
+        oldTime = currTime
+        if isWebcam:
+          currTime = time.time_ns() / (10 ** 9)
+          if startTime is None:
+            startTime = currTime
+          currTime = currTime - startTime
+        else:
+          currTime = cap.get(cv.CAP_PROP_POS_MSEC)/1000.0
+
+        dt = 0 if (oldTime is None) else (currTime - oldTime)
         prevFrame = currFrame
         currFrame = newFrame
         nFrame += 1
@@ -597,8 +608,8 @@ def main(webcamNextRequested):
     frameRender = currFrame.copy()
     if prevFrame is not None:
       # run motion detectors
-      inMotionDetected,   inScore,  inDiff = detectMotion(prevFrame, currFrame, nFrame, historySize,  config['inputRectangle'], frameWidth, frameHeight, config,  inScores, config[ 'inThreshold'])
-      outMotionDetected, outScore, outDiff = detectMotion(prevFrame, currFrame, nFrame, historySize, config['outputRectangle'], frameWidth, frameHeight, config, outScores, config['outThreshold'])
+      inMotionDetected,   inScore,  inDiff = detectMotion(prevFrame, currFrame, historySize, config[ 'inputRectangle'], frameWidth, frameHeight, config,  inScores, config[ 'inThreshold'])
+      outMotionDetected, outScore, outDiff = detectMotion(prevFrame, currFrame, historySize, config['outputRectangle'], frameWidth, frameHeight, config, outScores, config['outThreshold'])
 
       # render the frame-to-frame image difference in their input/output rectangles
       drawSubImage(frameRender,  inDiff, 10, config[ 'inputRectangle'], frameWidth, frameHeight)
@@ -606,13 +617,13 @@ def main(webcamNextRequested):
 
       # start tracking a new Latency measurement when things have settled down (indicated by cooldown reaching zero), and save the previous Latency if it was valid
       cooldownPrev = cooldown
-      if not pauseOnce: cooldown = cooldown - spf # advance cooldown
+      if not pauseOnce: cooldown = cooldown - dt # advance cooldown
       cooldownFinished = cooldownPrev > 0 and cooldown < 0
       cooldown = max(0, cooldown)
-      if cooldownFinished or latency.total(spf) > maxLatency*1.25:
-        if latency.outDetectedFirst:
+      if cooldownFinished or latency.total() > maxLatency*1.25:
+        if latency.outDetectedFirstTime:
           # we have both input motion and output motion, so let's store this Latency measurement
-          delaySecs = spf*(latency.outDetectedFirst - latency.inDetectedFirst)
+          delaySecs = latency.outDetectedFirstTime - latency.inDetectedFirstTime
           latencies.append(latency)
           while(len(latencies) > 30):
             latencies.pop(0)
@@ -623,42 +634,42 @@ def main(webcamNextRequested):
 
       # we detected motion in the Input rectangle
       if inMotionDetected:
-        latency.inDetectedLast = nFrame
-        if latency.inDetectedFirst: # we are already keeping track of a Latency instance
+        latency.inDetectedLastTime = currTime
+        if latency.inDetectedFirstTime: # we are already keeping track of a Latency instance
           # bump the cooldown
           cooldown = max(cooldown, 0.1)
         else: # we're not tracking a Latency instance, start gathering its data!
-          latency.inDetectedFirst = nFrame
+          latency.inDetectedFirstTime = currTime
           latency.startTime = currTime
           inScorePeakValid = inScore # purely for UI purposes
           # bump the cooldown so we don't start measuring again too soon (mixing together two measurements if the user is impatiently using the input device)
           # if the latencies are high, cooldown needs to be high too. we first start at around 800ms of cooldown, and gradually shift towards the real latency average as we gather more and more data
-          avgLatency = sum([maxLatency]+[i.secs(spf) for i in latencies]) / (1+len(latencies))
+          avgLatency = sum([maxLatency]+[i.secs() for i in latencies]) / (1+len(latencies))
           cooldown = max(cooldown, max(0.3, avgLatency))
-        motionDetection = MotionDetection("in", inScore, config['inThreshold'], spf*(latency.inDetectedLast-latency.inDetectedFirst))
+        motionDetection = MotionDetection("in", inScore, config['inThreshold'], latency.inDetectedLastTime-latency.inDetectedFirstTime)
         latency.motionDetections.append(motionDetection)
 
       # we detected motion in the Input rectangle
       if outMotionDetected:
-        if latency.inDetectedFirst:
-          latency.outDetectedLast = nFrame
-          if latency.outDetectedFirst:
+        if latency.inDetectedFirstTime:
+          latency.outDetectedLastTime = currTime
+          if latency.outDetectedFirstTime:
             # we've detected Output motion more than once after the original Input motion
             # let's wait a tiny bit for Output to settle down
             cooldown = max(cooldown, 0.1)
           else:
             # we've detected Output motion for the first time after detecting Input motion
-            latency.outDetectedFirst = nFrame
+            latency.outDetectedFirstTime = currTime
             outScorePeakValid = outScore
             # let's wait a in case the Output motion is lengthy and bumps the cooldown even more
             cooldown = max(cooldown, 0.2)
-          motionDetection = MotionDetection("out", outScore, config['outThreshold'], spf*(latency.outDetectedLast-latency.inDetectedFirst))
+          motionDetection = MotionDetection("out", outScore, config['outThreshold'], latency.outDetectedLastTime-latency.inDetectedFirstTime)
           latency.motionDetections.append(motionDetection)
         else: # we got motion on the Output rectangle before we got any Input motion
           cooldown = max(cooldown, 0.1) # the output imagery hasn't settled yet, or is unstable. wait a bit
 
-      if latency.inDetectedFirst: # we are measuring latency atm
-        latency.lastFrame = nFrame
+      if latency.inDetectedFirstTime: # we are measuring latency atm
+        latency.lastFrameTime = currTime
       if not inMotionDetected: inScorePeak = max(inScore, inScorePeak)
       if not outMotionDetected: outScorePeak = max(outScore, outScorePeak)
 
@@ -706,20 +717,20 @@ def main(webcamNextRequested):
     yStart = getLineY(line) - 8
     n = 0
     for i in latencies: # history
-      secs = i.secs(spf)
-      total = i.total(spf)
+      secs = i.secs()
+      total = i.total()
       frameRender = drawLatency(frameRender, advanced, i.startTime, spf, n, yStart, secs, total, black, darkgrey, white, "{} ms".format(int(secs*1000)), i.motionDetections)
       n += 1
-    if latency.inDetectedFirst>0 and not videoEnded: # current
-      secs = latency.secs(spf)
-      total = latency.total(spf)
+    if latency.inDetectedFirstTime>0 and not videoEnded: # current
+      secs = latency.secs()
+      total = latency.total()
       frameRender = drawLatency(frameRender, advanced, latency.startTime, spf, n, yStart, secs, total, black, darkgrey, white, "{} ms".format(int(secs*1000)), latency.motionDetections, cooldown)
       n += 1
     # average+ready
     rectsDefined = config['inputRectangle'] is not None and config['outputRectangle'] is not None
     label   = "(R)estart" if videoEnded else ((  "Wait" if cooldown > 0 else "Ready") if rectsDefined else "Please (s)elect motion rectangles")
     colorbg =       green if videoEnded else ((darkgrey if cooldown > 0 else   green) if rectsDefined else red)
-    secs = ((sum([i.secs(spf) for i in latencies])/len(latencies) if latencies else 0.1) if rectsDefined else 0.25)
+    secs = ((sum([i.secs() for i in latencies])/len(latencies) if latencies else 0.1) if rectsDefined else 0.25)
     total = secs
     frameRender = drawLatency(frameRender, advanced, currTime, spf, n, yStart, secs, total, black, colorbg, white, "{}{}".format("{} avg. ".format(int(secs*1000)) if latencies else "", label), [])
     n += 1
