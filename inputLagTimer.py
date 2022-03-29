@@ -89,6 +89,35 @@ def drawHeaderText(frame, currTime, dt, videoEnded, line):
     line += 1
   return line
 
+def drawSummaryText(frame, latencies, line):
+  secs = [i.secs() for i in latencies]
+  secsLen = len(secs)
+  if secsLen:
+    secsMin = min(secs)
+    secsMax = max(secs)
+    secsAvg = sum(secs) / secsLen
+    h = 16
+    x = 5
+    drawText(frame, "min:{}ms, avg:{}ms, max:{}ms".format(int(secsMin*1000), int(secsAvg*1000), int(secsMax*1000)), x, line=line)
+    line += 1
+    yStart = getLineY(line) - 8
+    #frame = drawLatency(frame, False, None, None, 0, yStart, secsMax, None, black, darkgrey, white, "{} ms".format(int(secsAvg*1000)), None)
+    frame = drawLatency(frame, False, None, None, 0, yStart, secsMax, None, black, darkgrey, white, None, None)
+    frame = drawLatency(frame, False, None, None, 0, yStart, secsAvg, None, black, darkgrey, white, None, None)
+    frame = drawLatency(frame, False, None, None, 0, yStart, secsMin, None, black, grey, white, None, None)
+    #frame = drawLatency(frame, False, None, None, 0, yStart, secsMin, None, black, darkgrey, white, "{} ms".format(int(secsAvg*1000)), None)
+    hist = {}
+    for s in secs:
+      k = round(s*1000)
+      if k in hist:
+        hist[k] += 1
+      else:
+        hist[k] = 0
+    for k,v in hist.items():
+      frame = drawRect(frame, [x+1 + pixels(k/1000), yStart+h-1, 1, -min(v*2,h-1)], white)
+    line += 1
+  return line
+
 # indicator of input and output motion scores, including label, last detected peak, and motion scoreThreshold
 def drawBar(frame, x, y, width, maxValue, scoreThreshold, score, scorePeak, scorePeakValid, color):
   border = 1
@@ -110,35 +139,37 @@ def drawBar(frame, x, y, width, maxValue, scoreThreshold, score, scorePeak, scor
   frame = drawRect(frame, [x-border+w+scale(scoreThreshold), y-0.5*h, w, h], white)
   return frame
 
+def pixels(s):
+  return round(s * 2500)
+
 # displays a Latency measurement, including all its motion events, the cooldown period, etc
 def drawLatency(frame, advanced, startTime, spf, n, yStart, secs, total, colorframe, colorbg, colortext, text, motionDetections, cooldown=None):
   x = 5
   h = 16
-  ms = round(1000*secs)
-  totalms = round(1000*total)
   y = yStart + n*h
-  if advanced > 2:
+  if advanced > 3:
     drawText(frame, "{:01}:{:06.3f}".format(int(startTime/60), startTime % 60), x, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=colorbg)
-    x = 5+70
+    x += 70
   if cooldown:
     cooldownms = round(1000*cooldown)
-    frame=drawRect(frame, [x,   y,   cooldownms+totalms+2, h  ], colorframe)
-    frame=drawRect(frame, [x+1, y+1, cooldownms+totalms  , h-2], darkgrey)
-  if cooldown or advanced:
-    frame = drawRect(frame, [x,   y,      totalms+2, h  ], colorframe)
-    frame = drawRect(frame, [x+1, y+1,    totalms  , h-2], grey)
-  frame = drawRect(frame, [x,   y,           ms+2, h  ], colorframe)
-  frame = drawRect(frame, [x+1, y+1,         ms  , h-2], colorbg)
-  if advanced:
+    frame=drawRect(frame, [x,   y,   pixels(cooldown+total)+2, h  ], colorframe)
+    frame=drawRect(frame, [x+1, y+1, pixels(cooldown+total)  , h-2], darkgrey)
+  if cooldown or advanced > 1:
+    frame = drawRect(frame, [x,   y,      pixels(total)+2, h  ], colorframe)
+    frame = drawRect(frame, [x+1, y+1,    pixels(total)  , h-2], grey)
+  frame = drawRect(frame, [x,   y,        pixels( secs)+2, h  ], colorframe)
+  frame = drawRect(frame, [x+1, y+1,      pixels( secs)  , h-2], colorbg)
+  if advanced > 1:
     for motionDetection in motionDetections:
       scoreMax = motionDetection.scoreThreshold*5
       scoreNorm = min(1, (motionDetection.score-motionDetection.scoreThreshold) / scoreMax)
-      eventPixels = max(2, 1000*spf*scoreNorm)
+      eventPixels = max(2, pixels(spf*scoreNorm))
       if motionDetection.kind == "in":
-        frame = drawRect(frame, [x+1 + 1000*motionDetection.duration, y+h-1, eventPixels, -2], inputColor)
+        frame = drawRect(frame, [x+1 + pixels(motionDetection.duration), y+h-1, eventPixels, -2], inputColor)
       else:
-        frame = drawRect(frame, [x+1 + 1000*motionDetection.duration, y+1  , eventPixels,  2], outputColor)
-  drawText(frame, text, x+1, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=None)
+        frame = drawRect(frame, [x+1 + pixels(motionDetection.duration), y+1  , eventPixels,  2], outputColor)
+  if text:
+    drawText(frame, text, x+1, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=None)
   return frame
 
 
@@ -209,7 +240,7 @@ def processKeypress(key, config, retry, paused, pauseOnce, dirtyConfig, selectRe
     breakRequested = True
   if key == ord('a'): # advanced
     global advanced
-    advanced = (advanced + 1) % 4
+    advanced = (advanced + 1) % 5
     pauseOnce = True
   if key == ord('q'): # pause
     currQuality = qualities.index(config['quality'])
@@ -624,9 +655,10 @@ def main(webcamNextRequested):
         if latency.outDetectedFirstTime:
           # we have both input motion and output motion, so let's store this Latency measurement
           delaySecs = latency.outDetectedFirstTime - latency.inDetectedFirstTime
-          latencies.append(latency)
-          while(len(latencies) > 30):
-            latencies.pop(0)
+          if delaySecs > 0:
+            latencies.append(latency)
+            while(len(latencies) > 30):
+              latencies.pop(0)
         # start a new Latency measurement
         latency = Latency()
         inScorePeak = 0
@@ -695,7 +727,7 @@ def main(webcamNextRequested):
     line = drawHeaderText(frameRender, currTime, dt, videoEnded, line)
 
     # draw stats text
-    if advanced > 1:
+    if advanced > 2:
       drawText(frameRender, "{}x{}@{}Hz | (w)ebcam{} | (q)uality: {} | (c)onfig | (m)otion detector: {}{}".format(
         frameWidth, frameHeight, int(fps),
         " #{}".format(videopath) if type(videopath) is int else "",
@@ -714,13 +746,15 @@ def main(webcamNextRequested):
       drawText(frameRender, "Copyright 2021 Bruno Gonzalez Campo (@stenyak)", 1, y=winHeight-4, fontScale=0.3)
 
     # draw measured latencies
+    line = drawSummaryText(frameRender, latencies, line)
     yStart = getLineY(line) - 8
     n = 0
-    for i in latencies: # history
-      secs = i.secs()
-      total = i.total()
-      frameRender = drawLatency(frameRender, advanced, i.startTime, spf, n, yStart, secs, total, black, darkgrey, white, "{} ms".format(int(secs*1000)), i.motionDetections)
-      n += 1
+    if advanced > 0:
+      for i in latencies: # history
+        secs = i.secs()
+        total = i.total()
+        frameRender = drawLatency(frameRender, advanced, i.startTime, spf, n, yStart, secs, total, black, darkgrey, white, "{} ms".format(int(secs*1000)), i.motionDetections)
+        n += 1
     if latency.inDetectedFirstTime>0 and not videoEnded: # current
       secs = latency.secs()
       total = latency.total()
@@ -732,7 +766,7 @@ def main(webcamNextRequested):
     colorbg =       green if videoEnded else ((darkgrey if cooldown > 0 else   green) if rectsDefined else red)
     secs = ((sum([i.secs() for i in latencies])/len(latencies) if latencies else 0.1) if rectsDefined else 0.25)
     total = secs
-    frameRender = drawLatency(frameRender, advanced, currTime, spf, n, yStart, secs, total, black, colorbg, white, "{}{}".format("{} avg. ".format(int(secs*1000)) if latencies else "", label), [])
+    frameRender = drawLatency(frameRender, advanced, currTime, spf, n, yStart, secs, total, black, colorbg, white, label, [])
     n += 1
 
     # update window
