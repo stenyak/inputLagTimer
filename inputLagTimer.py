@@ -81,8 +81,8 @@ def drawRect(frame, rect, color, thickness=-1, scaleX=1, scaleY=1):
   end   = (round(x + w), round(y + h))
   return cv.rectangle(frame, start, end, color, thickness)
 
-def drawHeaderText(frame, currTime, videoEnded, line):
-  drawText(frame, "{:01}:{:06.3f} (s)elect rectangles, (p)ause, (r)estart, (esc)exit, (a)dvanced".format(int(currTime/60), currTime%60), 5, line=line)
+def drawHeaderText(frame, currTime, dt, videoEnded, line):
+  drawText(frame, "{:01}:{:06.3f} {:02}ms/{:03}fps (s)elect rectangles, (p)ause, (r)estart, (esc)exit, (a)dvanced".format(int(currTime/60), currTime%60, int(dt*1000), int(1/dt) if dt>0 else 0), 5, line=line)
   line += 1
   if videoEnded:
     drawText(frame, " ------ Reached end of video ------", 5, line=line, color=red, colorbg=white)
@@ -692,7 +692,7 @@ def main(webcamNextRequested):
       frameRender = drawBar(frameRender, x, getLineY(line)-4, w, maxValue, config['outThreshold'], outScore, outScorePeak, outScorePeakValid, outputColor)
       line += 1
 
-    line = drawHeaderText(frameRender, currTime, videoEnded, line)
+    line = drawHeaderText(frameRender, currTime, dt, videoEnded, line)
 
     # draw stats text
     if advanced:
