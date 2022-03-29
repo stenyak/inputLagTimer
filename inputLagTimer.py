@@ -117,7 +117,7 @@ def drawLatency(frame, advanced, startTime, spf, n, yStart, secs, total, colorfr
   ms = round(1000*secs)
   totalms = round(1000*total)
   y = yStart + n*h
-  if advanced:
+  if advanced > 2:
     drawText(frame, "{:01}:{:06.3f}".format(int(startTime/60), startTime % 60), x, y=y+h-4, fontScale=0.4, thickness=1, color=colortext, colorbg=colorbg)
     x = 5+70
   if cooldown:
@@ -147,7 +147,7 @@ def drawLatency(frame, advanced, startTime, spf, n, yStart, secs, total, colorfr
 
 # helper vars
 windowName = "InputLagTimer v{}".format(version)
-advanced = False
+advanced = 0
 
 # blocks the UI, asking the user to draw a rectangle with the mouse
 def requestRectangle(windowName, frame, winWidth, winHeight):
@@ -209,7 +209,7 @@ def processKeypress(key, config, retry, paused, pauseOnce, dirtyConfig, selectRe
     breakRequested = True
   if key == ord('a'): # advanced
     global advanced
-    advanced = not advanced
+    advanced = (advanced + 1) % 4
     pauseOnce = True
   if key == ord('q'): # pause
     currQuality = qualities.index(config['quality'])
@@ -695,7 +695,7 @@ def main(webcamNextRequested):
     line = drawHeaderText(frameRender, currTime, dt, videoEnded, line)
 
     # draw stats text
-    if advanced:
+    if advanced > 1:
       drawText(frameRender, "{}x{}@{}Hz | (w)ebcam{} | (q)uality: {} | (c)onfig | (m)otion detector: {}{}".format(
         frameWidth, frameHeight, int(fps),
         " #{}".format(videopath) if type(videopath) is int else "",
